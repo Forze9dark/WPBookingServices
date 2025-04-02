@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+    <rect width="800" height="600" fill="#f5f5f5"/>
+    <path d="M400 250 C 400 250, 450 280, 450 330 C 450 380, 400 410, 350 410 C 300 410, 250 380, 250 330 C 250 280, 300 250, 350 250 C 380 250, 400 250, 400 250 Z" fill="#e0e0e0"/>
+    <circle cx="380" cy="300" r="20" fill="#cccccc"/>
+    <path d="M300 380 C 300 380, 400 380, 450 330 C 450 330, 400 430, 300 430 C 250 430, 200 380, 250 330 C 250 330, 300 380, 300 380 Z" fill="#d4d4d4"/>
+    <text x="400" y="500" font-family="Arial" font-size="24" text-anchor="middle" fill="#666666">Imagen no disponible</text>
+</svg>

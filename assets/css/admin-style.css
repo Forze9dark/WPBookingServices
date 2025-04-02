@@ -1,0 +1,110 @@
+/**
+ * Estilos para la administración de WP Booking Services
+ */
+
+/* Estilos para los estados de servicios */
+.status-active .dashicons-yes-alt {
+    color: #46b450;
+}
+
+.status-inactive .dashicons-marker {
+    color: #dc3232;
+}
+
+/* Mejoras para la tabla de servicios */
+.wp-list-table .column-price .price-amount {
+    font-weight: bold;
+}
+
+.wp-list-table .column-actions .button {
+    display: inline-flex;
+    align-items: center;
+}
+
+.wp-list-table .column-actions .button .dashicons {
+    margin-right: 3px;
+    font-size: 16px;
+    height: 16px;
+    width: 16px;
+}
+
+/* Estilos para el formulario de servicios */
+#titlediv {
+    margin-bottom: 20px;
+}
+
+#titlewrap {
+    margin-bottom: 0;
+}
+
+#wbs-service-form {
+    margin-bottom: 60px;
+}
+
+.featured-image-preview {
+    margin-bottom: 10px;
+    min-height: 30px;
+}
+
+.gallery-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.gallery-item {
+    position: relative;
+    border: 1px solid #ddd;
+    padding: 5px;
+    background: #f9f9f9;
+}
+
+.gallery-item img {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.remove-gallery-image {
+    color: #a00;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.remove-gallery-image:hover {
+    color: #dc3232;
+    text-decoration: underline;
+}
+
+.price-field {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.price-symbol {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+}
+
+#price {
+    padding-left: 20px;
+}
+
+/* Estilos para dispositivos móviles */
+@media screen and (max-width: 782px) {
+    .wp-list-table .column-actions .button {
+        margin-top: 5px;
+    }
+    
+    .wp-list-table .is-expanded td.column-primary {
+        padding-bottom: 10px;
+    }
+    
+    #post-body.columns-2 #postbox-container-1 {
+        margin-top: 20px;
+    }
+}
