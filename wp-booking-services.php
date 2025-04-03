@@ -112,6 +112,7 @@ register_deactivation_hook(__FILE__, 'wbs_deactivate');
 
 // Incluir archivos necesarios
 require_once WBS_PLUGIN_DIR . 'includes/database.php';
+require_once WBS_PLUGIN_DIR . 'includes/ajax-functions.php';
 require_once WBS_PLUGIN_DIR . 'admin/welcome-page.php';
 require_once WBS_PLUGIN_DIR . 'admin/admin-menu.php';
 require_once WBS_PLUGIN_DIR . 'admin/services.php';
