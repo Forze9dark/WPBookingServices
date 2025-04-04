@@ -326,6 +326,11 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             padding: 0.8rem 1rem;
             transition: var(--transition);
         }
+        
+        /* Ajuste para los selectores numéricos */
+        input[type="number"].form-control {
+            padding: 0.8rem 0.5rem;
+        }
 
         .form-control:focus, .form-select:focus {
             border-color: #b0b0b0;
@@ -782,7 +787,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                     <h4 id="tour-title" class="mb-2"></h4>
                                     <div class="mb-2">
                                         <span class="badge bg-primary rounded-pill me-2" id="tour-category"></span>
-                                        <span class="text-muted"><i class="fas fa-clock me-1"></i><span id="tour-duration">3 horas</span></span>
+                                        <span class="text-muted"><i class="fas fa-calendar me-1"></i><span id="tour-date-display">Fecha del tour</span></span>
                                     </div>
                                     <p id="tour-description" class="mb-3"></p>
                                     <div class="d-flex justify-content-between align-items-center">
@@ -796,11 +801,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                         </div>
                     </div>
                     <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label for="tour-date" class="form-label fw-medium mb-1">Fecha del Tour</label>
-                            <input type="date" class="form-control" id="tour-date" name="tour_date" required>
-                        </div>
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label for="tour-participants" class="form-label fw-medium mb-1">Número de Participantes</label>
                             <input type="number" class="form-control" id="tour-participants" name="tour_participants" min="1" value="1" required>
                         </div>
@@ -818,10 +819,6 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                 <div class="checkout-step" id="step-2" style="display: none;">
                     <h5 class="mb-3">Detalles Adicionales</h5>
                     <div class="mb-4">
-                        <label for="special-requirements" class="form-label fw-medium mb-1">Requerimientos Especiales</label>
-                        <textarea class="form-control" id="special-requirements" name="special_requirements" rows="3" placeholder="Indica si tienes algún requerimiento especial (dieta, accesibilidad, etc.)"></textarea>
-                    </div>
-                    <div class="mb-4">
                         <h6 class="mb-3">Método de Pago</h6>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment-transfer" value="transfer" checked>
@@ -829,7 +826,27 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                 <i class="fas fa-university me-2"></i>Transferencia Bancaria
                             </label>
                         </div>
-                        <div class="form-check">
+                        <div id="bank-transfer-details" class="mt-3 ps-4">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="bank-name" class="form-label fw-medium mb-1">Banco</label>
+                                    <input type="text" class="form-control" id="bank-name" name="bank_name">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="account-number" class="form-label fw-medium mb-1">Número de Cuenta</label>
+                                    <input type="text" class="form-control" id="account-number" name="account_number">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="account-type" class="form-label fw-medium mb-1">Tipo de Cuenta</label>
+                                    <select class="form-select" id="account-type" name="account_type">
+                                        <option value="">Seleccionar...</option>
+                                        <option value="corriente">Corriente</option>
+                                        <option value="ahorro">Ahorro</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mt-3">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment-cash" value="cash">
                             <label class="form-check-label" for="payment-cash">
                                 <i class="fas fa-money-bill-wave me-2"></i>Pago en Efectivo
@@ -889,9 +906,16 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     <h5 class="mb-3">Artículos Disponibles</h5>
                     <div class="extras-container mb-4" id="articles-container">
                         <!-- Los artículos se cargarán dinámicamente aquí -->
-                        <div class="alert alert-info">
+                        <div class="alert alert-info loading-articles">
                             <i class="fas fa-info-circle me-2"></i>
                             <span>Cargando artículos disponibles...</span>
+                        </div>
+                        <div id="articles-list" class="row g-3" style="display: none;">
+                            <!-- Aquí se cargarán los artículos del grupo -->
+                        </div>
+                        <div class="mt-3 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Subtotal artículos:</h6>
+                            <span class="h6" id="articles-subtotal">$0.00</span>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between mt-4">
@@ -921,6 +945,9 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Método de pago:</span>
                                 <span class="fw-medium" id="summary-payment"></span>
+                            </div>
+                            <div id="summary-articles-container">
+                                <!-- Aquí se mostrarán los artículos seleccionados -->
                             </div>
                             <hr>
                             <div class="d-flex justify-content-between">
@@ -975,13 +1002,25 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                 document.getElementById('tour-price').textContent = `$${parseFloat(serviceData.servicePrice).toFixed(2)}`;
                 document.getElementById('tour-image').src = serviceData.serviceImage;
                 
+                // Mostrar la fecha del tour
+                const today = new Date();
+                const formattedDate = today.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                document.getElementById('tour-date-display').textContent = formattedDate;
+                
                 // Actualizar el resumen
                 document.getElementById('summary-service').textContent = serviceData.serviceName;
                 document.getElementById('summary-total').textContent = `$${parseFloat(serviceData.servicePrice).toFixed(2)}`;
 
                 // Mostrar/ocultar paso de artículos según corresponda
                 const articlesStep = document.getElementById('articles-step');
-                articlesStep.style.display = serviceData.hasArticles === 'true' ? 'block' : 'none';
+                const hasArticles = serviceData.hasArticles === 'true';
+                articlesStep.style.display = hasArticles ? 'block' : 'none';
+                
+                // Si tiene artículos, cargar los artículos del grupo
+                if (hasArticles) {
+                    const articleGroupId = serviceData.articleGroupId;
+                    loadArticlesFromGroup(articleGroupId);
+                }
 
                 // Resetear el formulario y el progreso
                 bookingForm.reset();
@@ -1031,13 +1070,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
         function validateStep(step) {
             switch(step) {
                 case 1:
-                    const dateInput = document.getElementById('tour-date');
                     const participantsInput = document.getElementById('tour-participants');
-                    if (!dateInput.value) {
-                        alert('Por favor, selecciona una fecha para el tour');
-                        dateInput.focus();
-                        return false;
-                    }
                     if (!participantsInput.value || participantsInput.value < 1) {
                         alert('Por favor, indica el número de participantes');
                         participantsInput.focus();
@@ -1085,22 +1118,258 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
         // Función para actualizar el resumen
         function updateSummary() {
             const serviceName = document.getElementById('tour-title').textContent;
-            const serviceDate = document.getElementById('tour-date').value;
+            const serviceDate = document.getElementById('tour-date-display').textContent;
             const participants = document.getElementById('tour-participants').value;
             const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
             const servicePrice = document.getElementById('tour-price').textContent;
             
             document.getElementById('summary-service').textContent = serviceName;
-            document.getElementById('summary-date').textContent = new Date(serviceDate).toLocaleDateString();
+            document.getElementById('summary-date').textContent = serviceDate;
             document.getElementById('summary-participants').textContent = participants;
             document.getElementById('summary-payment').textContent = paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Pago en Efectivo';
             
             // Calcular el total
             const price = parseFloat(servicePrice.replace('$', ''));
-            const total = price * parseInt(participants);
+            const participantsTotal = price * parseInt(participants);
+            
+            // Añadir el costo de los artículos seleccionados
+            const articlesSubtotal = parseFloat(document.getElementById('articles-subtotal').textContent.replace('$', '')) || 0;
+            const total = participantsTotal + articlesSubtotal;
+            
+            // Actualizar el resumen con los artículos seleccionados
+            const articlesContainer = document.getElementById('summary-articles-container');
+            if (articlesContainer) {
+                articlesContainer.innerHTML = '';
+                
+                // Obtener todos los artículos seleccionados
+                const selectedArticles = [];
+                document.querySelectorAll('.article-item').forEach(item => {
+                    const quantity = parseInt(item.querySelector('.article-quantity').value);
+                    if (quantity > 0) {
+                        const name = item.querySelector('.article-name').textContent;
+                        const price = parseFloat(item.querySelector('.article-price').dataset.price);
+                        selectedArticles.push({ name, quantity, price });
+                    }
+                });
+                
+                // Mostrar los artículos seleccionados en el resumen
+                if (selectedArticles.length > 0) {
+                    const articlesList = document.createElement('div');
+                    articlesList.className = 'mt-2';
+                    
+                    selectedArticles.forEach(article => {
+                        const articleRow = document.createElement('div');
+                        articleRow.className = 'd-flex justify-content-between mb-1';
+                        
+                        // Mostrar "INCLUIDO" para artículos con precio 0
+                        if (article.price === 0) {
+                            articleRow.innerHTML = `
+                                <span>${article.quantity}x ${article.name}</span>
+                                <span class="fw-bold text-success">INCLUIDO</span>
+                            `;
+                        } else {
+                            articleRow.innerHTML = `
+                                <span>${article.quantity}x ${article.name}</span>
+                                <span>$${(article.price * article.quantity).toFixed(2)}</span>
+                            `;
+                        }
+                        
+                        articlesList.appendChild(articleRow);
+                    });
+                    
+                    articlesContainer.appendChild(articlesList);
+                }
+            }
+            
             document.getElementById('summary-total').textContent = `$${total.toFixed(2)}`;
         }
+        
+        // Manejar la visibilidad de los campos de transferencia bancaria
+        document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const bankTransferDetails = document.getElementById('bank-transfer-details');
+                if (this.value === 'transfer') {
+                    bankTransferDetails.style.display = 'block';
+                } else {
+                    bankTransferDetails.style.display = 'none';
+                }
+            });
+        });
+        
+        // Inicializar la visibilidad de los campos de transferencia bancaria
+        window.addEventListener('DOMContentLoaded', function() {
+            const bankTransferDetails = document.getElementById('bank-transfer-details');
+            const transferRadio = document.getElementById('payment-transfer');
+            if (transferRadio && transferRadio.checked) {
+                bankTransferDetails.style.display = 'block';
+            } else {
+                bankTransferDetails.style.display = 'none';
+            }
+        });
 
+        // Función para cargar los artículos del grupo
+        function loadArticlesFromGroup(groupId) {
+            const loadingAlert = document.querySelector('.loading-articles');
+            const articlesList = document.getElementById('articles-list');
+            
+            // Mostrar cargando y ocultar la lista
+            loadingAlert.style.display = 'block';
+            articlesList.style.display = 'none';
+            articlesList.innerHTML = '';
+            
+            // Realizar la petición AJAX para obtener los artículos del grupo
+            fetch(`<?php echo admin_url('admin-ajax.php'); ?>?action=get_group_articles&group_id=${groupId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error de red: ${response.status}`);
+                    }
+                    return response.json().catch(e => {
+                        console.error('Error al parsear JSON:', e);
+                        throw new Error('La respuesta del servidor no es un JSON válido');
+                    });
+                })
+                .then(response => {
+                    // Ocultar cargando
+                    loadingAlert.style.display = 'none';
+                    
+                    // Verificar si la respuesta contiene un error
+                    if (response.success === false) {
+                        throw new Error(response.data?.message || 'Error al cargar los artículos');
+                    }
+                    
+                    // Obtener los artículos de la nueva estructura de respuesta
+                    const articles = response.data || [];
+                    
+                    if (articles.length > 0) {
+                        // Crear elementos para cada artículo
+                        articles.forEach(article => {
+                            const articleElement = document.createElement('div');
+                            articleElement.className = 'col-md-6 col-lg-4';
+                            articleElement.innerHTML = `
+                                <div class="card h-100 article-item" data-article-id="${article.id}">
+                                    <div class="card-body">
+                                        <h6 class="card-title article-name">${article.name}</h6>
+                                        <p class="card-text small text-muted">${article.description || 'Sin descripción'}</p>
+                                        <div class="d-flex justify-content-between align-items-center mt-3">
+                                            ${parseFloat(article.price) === 0 ? 
+                                                `<span class="article-price fw-bold text-success" data-price="${article.price}">INCLUIDO</span>` : 
+                                                `<span class="article-price" data-price="${article.price}">$${parseFloat(article.price).toFixed(2)}</span>`
+                                            }
+                                            <div class="quantity-control d-flex align-items-center ${parseFloat(article.price) === 0 ? 'invisible' : ''}">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary decrease-quantity" ${parseFloat(article.price) === 0 ? 'disabled' : ''}>-</button>
+                                                <input type="number" class="form-control form-control-sm mx-2 text-center article-quantity" value="${parseFloat(article.price) === 0 ? '1' : '0'}" min="0" max="99" style="width: 50px;" ${parseFloat(article.price) === 0 ? 'readonly' : ''}>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary increase-quantity" ${parseFloat(article.price) === 0 ? 'disabled' : ''}>+</button>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2 text-end">
+                                            <span class="article-subtotal">$0.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            articlesList.appendChild(articleElement);
+                        });
+                        
+                        // Mostrar la lista de artículos
+                        articlesList.style.display = 'flex';
+                        
+                        // Agregar event listeners para los controles de cantidad
+                        addQuantityControlListeners();
+                    } else {
+                        // No hay artículos disponibles
+                        loadingAlert.innerHTML = `
+                            <i class="fas fa-info-circle me-2"></i>
+                            <span>No hay artículos disponibles para este servicio.</span>
+                        `;
+                        loadingAlert.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar los artículos:', error);
+                    loadingAlert.innerHTML = `
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span>Error al cargar los artículos. Por favor, inténtalo de nuevo.</span>
+                    `;
+                    loadingAlert.classList.remove('alert-info');
+                    loadingAlert.classList.add('alert-danger');
+                    loadingAlert.style.display = 'block';
+                    
+                    // Mostrar mensaje de error específico en la consola para depuración
+                    console.log('Detalles del error:', error.message, error.name, error);
+                    
+                    // Intentar recuperarse del error
+                    articlesList.innerHTML = '<div class="col-12"><div class="alert alert-warning">No se pudieron cargar los artículos. Por favor, intente nuevamente más tarde.</div></div>';
+                    articlesList.style.display = 'flex';
+                });
+        }
+        
+        // Función para agregar event listeners a los controles de cantidad
+        function addQuantityControlListeners() {
+            // Botones de incremento
+            document.querySelectorAll('.increase-quantity').forEach(button => {
+                button.addEventListener('click', function() {
+                    const input = this.parentElement.querySelector('.article-quantity');
+                    const currentValue = parseInt(input.value);
+                    if (currentValue < parseInt(input.max)) {
+                        input.value = currentValue + 1;
+                        // Disparar evento de cambio para actualizar subtotales
+                        input.dispatchEvent(new Event('change'));
+                    }
+                });
+            });
+            
+            // Botones de decremento
+            document.querySelectorAll('.decrease-quantity').forEach(button => {
+                button.addEventListener('click', function() {
+                    const input = this.parentElement.querySelector('.article-quantity');
+                    const currentValue = parseInt(input.value);
+                    if (currentValue > parseInt(input.min)) {
+                        input.value = currentValue - 1;
+                        // Disparar evento de cambio para actualizar subtotales
+                        input.dispatchEvent(new Event('change'));
+                    }
+                });
+            });
+            
+            // Inputs de cantidad
+            document.querySelectorAll('.article-quantity').forEach(input => {
+                input.addEventListener('change', function() {
+                    // Asegurar que el valor esté dentro de los límites
+                    let value = parseInt(this.value);
+                    if (isNaN(value) || value < parseInt(this.min)) {
+                        value = parseInt(this.min);
+                    } else if (value > parseInt(this.max)) {
+                        value = parseInt(this.max);
+                    }
+                    this.value = value;
+                    
+                    // Actualizar subtotal del artículo
+                    const articleItem = this.closest('.article-item');
+                    const price = parseFloat(articleItem.querySelector('.article-price').dataset.price);
+                    const subtotal = price * value;
+                    articleItem.querySelector('.article-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+                    
+                    // Actualizar subtotal general de artículos
+                    updateArticlesSubtotal();
+                });
+            });
+        }
+        
+        // Función para actualizar el subtotal de todos los artículos
+        function updateArticlesSubtotal() {
+            let subtotal = 0;
+            document.querySelectorAll('.article-item').forEach(item => {
+                const quantity = parseInt(item.querySelector('.article-quantity').value);
+                const price = parseFloat(item.querySelector('.article-price').dataset.price);
+                // Solo sumar al subtotal si el precio no es 0
+                if (price > 0) {
+                    subtotal += price * quantity;
+                }
+            });
+            
+            document.getElementById('articles-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        }
+        
         // Prevenir cierre del modal al hacer clic fuera o con ESC
         bookingModal.addEventListener('hide.bs.modal', function(e) {
             if (!confirm('¿Estás seguro de que deseas cancelar la reserva?')) {

@@ -69,7 +69,7 @@ function wbs_get_service_articles() {
     
     // Obtener todos los grupos de artículos del servicio
     $groups = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $table_article_groups WHERE service_id = %d ORDER BY display_order ASC",
+        "SELECT * FROM $table_article_groups WHERE service_id = %d ORDER BY id ASC",
         $service_id
     ));
     
@@ -79,7 +79,7 @@ function wbs_get_service_articles() {
         foreach ($groups as $group) {
             // Obtener artículos de cada grupo
             $articles = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table_articles WHERE group_id = %d ORDER BY display_order ASC",
+                "SELECT * FROM $table_articles WHERE group_id = %d ORDER BY id ASC",
                 $group->id
             ));
             
@@ -101,13 +101,20 @@ add_action('wp_ajax_nopriv_get_service_articles', 'wbs_get_service_articles');
 
 // Obtener artículos de un grupo específico
 function wbs_get_group_articles() {
+    // Evitar cualquier salida antes de enviar el JSON
+    ob_start();
+    
     // Verificar nonce para seguridad
     // check_ajax_referer('wbs_ajax_nonce', 'nonce');
+    
+    // Asegurar que la respuesta sea siempre JSON
+    header('Content-Type: application/json');
     
     $group_id = isset($_GET['group_id']) ? intval($_GET['group_id']) : 0;
     
     if ($group_id <= 0) {
-        wp_send_json_error('ID de grupo inválido');
+        ob_end_clean(); // Limpiar cualquier salida anterior
+        wp_send_json_error(array('message' => 'ID de grupo inválido'));
         return;
     }
     
@@ -116,22 +123,29 @@ function wbs_get_group_articles() {
     
     // Obtener artículos del grupo
     $articles = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $table_articles WHERE group_id = %d ORDER BY display_order ASC",
+        "SELECT * FROM $table_articles WHERE group_id = %d ORDER BY id ASC",
         $group_id
     ));
     
     // Formatear los datos para la respuesta JSON
     $formatted_articles = array();
-    foreach ($articles as $article) {
-        $formatted_articles[] = array(
-            'id' => $article->id,
-            'name' => $article->name,
-            'description' => $article->description,
-            'price' => $article->price
-        );
+    if ($articles) {
+        foreach ($articles as $article) {
+            $formatted_articles[] = array(
+                'id' => $article->id,
+                'name' => $article->name,
+                'description' => $article->description,
+                'price' => $article->price
+            );
+        }
     }
     
-    wp_send_json($formatted_articles);
+    // Limpiar cualquier salida anterior
+    ob_end_clean();
+    
+    // Asegurar que siempre devolvemos un objeto JSON válido
+    wp_send_json(array('success' => true, 'data' => $formatted_articles));
+    exit;
 }
 
 // Registrar la función para usuarios autenticados y no autenticados
