@@ -41,5 +41,14 @@ function wbs_admin_menu() {
         'wbs-articles',
         'wbs_articles_page'
     );
+
+    add_submenu_page(
+        'wp-booking-services',
+        __('Descuentos', 'wp-booking-services'),
+        __('Descuentos', 'wp-booking-services'),
+        'manage_options',
+        'wbs-discounts',
+        'wbs_discounts_page'
+    );
 }
 add_action('admin_menu', 'wbs_admin_menu');

@@ -82,6 +82,34 @@ function wbs_create_tables() {
     // Añadir relación con categorías si no existe
     $sql_add_category_relation = "ALTER TABLE $table_services
         ADD FOREIGN KEY (category_id) REFERENCES $table_categories(id) ON DELETE SET NULL;";
+        
+    // Tabla de descuentos
+    $table_discounts = $wpdb->prefix . 'wbs_discounts';
+    $sql_discounts = "CREATE TABLE IF NOT EXISTS $table_discounts (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        title varchar(255) NOT NULL,
+        description text,
+        discount_type varchar(20) NOT NULL,
+        condition_type varchar(20) NOT NULL,
+        condition_value decimal(10,2) NOT NULL,
+        discount_value decimal(10,2) NOT NULL,
+        status varchar(20) NOT NULL DEFAULT 'active',
+        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+
+    // Tabla de relación entre servicios y descuentos
+    $table_service_discounts = $wpdb->prefix . 'wbs_service_discounts';
+    $sql_service_discounts = "CREATE TABLE IF NOT EXISTS $table_service_discounts (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        service_id bigint(20) NOT NULL,
+        discount_id bigint(20) NOT NULL,
+        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        FOREIGN KEY (service_id) REFERENCES $table_services(id) ON DELETE CASCADE,
+        FOREIGN KEY (discount_id) REFERENCES $table_discounts(id) ON DELETE CASCADE
+    ) $charset_collate;";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql_article_groups);
@@ -89,6 +117,8 @@ function wbs_create_tables() {
     dbDelta($sql_services);
     dbDelta($sql_gallery);
     dbDelta($sql_articles);
+    dbDelta($sql_discounts);
+    dbDelta($sql_service_discounts);
     $wpdb->query($sql_add_category_relation);
     $wpdb->query($sql_add_group_relation);
 }

@@ -21,6 +21,8 @@ $categories_table = $wpdb->prefix . 'wbs_categories';
 $gallery_table = $wpdb->prefix . 'wbs_service_gallery';
 $article_groups_table = $wpdb->prefix . 'wbs_article_groups';
 $articles_table = $wpdb->prefix . 'wbs_articles';
+$discounts_table = $wpdb->prefix . 'wbs_discounts';
+$service_discounts_table = $wpdb->prefix . 'wbs_service_discounts';
 
 $services = $wpdb->get_results(
     "SELECT s.*, c.name as category_name, ag.id as article_group_id,
@@ -31,6 +33,28 @@ $services = $wpdb->get_results(
     LEFT JOIN {$article_groups_table} ag ON s.group_id = ag.id
     WHERE s.status = 'active'"
 );
+
+// Obtener las imágenes de la galería para cada servicio (máximo 5 por servicio)
+$service_galleries = array();
+foreach ($services as $service) {
+    $gallery_images = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$gallery_table} WHERE service_id = %d LIMIT 5",
+        $service->id
+    ));
+    $service_galleries[$service->id] = $gallery_images;
+}
+
+// Obtener los descuentos para cada servicio
+$service_discounts = array();
+foreach ($services as $service) {
+    $discounts = $wpdb->get_results($wpdb->prepare(
+        "SELECT d.* FROM {$discounts_table} d
+        JOIN {$service_discounts_table} sd ON d.id = sd.discount_id
+        WHERE sd.service_id = %d AND d.status = 'active'",
+        $service->id
+    ));
+    $service_discounts[$service->id] = $discounts;
+}
 
 $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
 ?><!DOCTYPE html>
@@ -407,6 +431,50 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             background-color: var(--primary-color);
             border-color: var(--primary-color);
         }
+        
+        /* Estilos para el carrusel de la galería */
+        #tourGalleryCarousel {
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        #tourGalleryCarousel .carousel-item {
+            transition: transform 0.6s ease-in-out;
+        }
+        
+        #tourGalleryCarousel .carousel-control-prev,
+        #tourGalleryCarousel .carousel-control-next {
+            width: 10%;
+            opacity: 0.7;
+            background: rgba(0,0,0,0.2);
+            border-radius: 0;
+            height: 100%;
+        }
+        
+        #tourGalleryCarousel .carousel-control-prev:hover,
+        #tourGalleryCarousel .carousel-control-next:hover {
+            opacity: 1;
+            background: rgba(0,0,0,0.3);
+        }
+        
+        #tourGalleryCarousel .carousel-indicators {
+            margin-bottom: 0.5rem;
+        }
+        
+        #tourGalleryCarousel .carousel-indicators button {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: rgba(255,255,255,0.7);
+            border: none;
+            margin: 0 3px;
+        }
+        
+        #tourGalleryCarousel .carousel-indicators button.active {
+            background-color: white;
+            transform: scale(1.2);
+        }
 
         @media (max-width: 768px) {
             .service-card {
@@ -416,6 +484,10 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             .search-bar {
                 width: 100%;
                 margin-top: 1rem;
+            }
+            
+            #tourGalleryCarousel {
+                margin-bottom: 1rem;
             }
         }
     </style>
@@ -504,7 +576,9 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                         data-service-category="<?php echo esc_attr($service->category_name); ?>"
                                         data-service-image="<?php echo esc_url($service->main_image ? $service->main_image : plugins_url('assets/images/default-service.svg', dirname(__FILE__))); ?>"
                                         data-has-articles="<?php echo $service->article_count > 0 ? 'true' : 'false'; ?>"
-                                        data-article-group-id="<?php echo esc_attr($service->article_group_id); ?>">
+                                        data-article-group-id="<?php echo esc_attr($service->article_group_id); ?>"
+                                        data-service-promo-video="<?php echo esc_attr($service->promo_video); ?>"
+                                        data-has-gallery="<?php echo !empty($service_galleries[$service->id]) ? 'true' : 'false'; ?>">
                                     Reservar
                                 </button>
                             </div>
@@ -573,6 +647,11 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                                 <span class="text-muted"><i class="fas fa-clock me-1"></i><span id="tour-duration">3 horas</span></span>
                                             </div>
                                             <p id="tour-description" class="mb-3"></p>
+                                            <div id="youtube-button-container" style="display: none;" class="mb-3">
+                                                <a href="#" id="youtube-promo-link" target="_blank" class="btn btn-danger">
+                                                    <i class="fab fa-youtube me-2"></i> Ver Video Promocional
+                                                </a>
+                                            </div>
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <span class="h5 mb-0" id="tour-price"></span>
@@ -593,9 +672,13 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                     <input type="number" class="form-control" id="tour-participants" name="tour_participants" min="1" value="1" required>
                                 </div>
                             </div>
-                            <div class="alert alert-info">
+                            <div class="alert alert-info" id="reservation-message">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <span>Selecciona la fecha y el número de participantes para continuar con tu reserva.</span>
+                            </div>
+                            <div class="alert alert-success" id="discount-message" style="display: none;">
+                                <i class="fas fa-tag me-2"></i>
+                                <span id="discount-text"></span>
                             </div>
                             <div class="d-flex justify-content-end mt-4">
                                 <button type="button" class="btn btn-reserve btn-next">Continuar <i class="fas fa-arrow-right ms-2"></i></button>
@@ -693,10 +776,14 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                             <h5 class="mb-3">Confirmación de Reserva</h5>
                             <div class="card mb-4">
                                 <div class="card-body">
-                                    <h6 class="mb-3">Resumen de tu reserva</h6>
+                                    <h6 class="mb-3 border-bottom pb-2">Detalles del Servicio</h6>
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>Servicio:</span>
                                         <span class="fw-medium" id="summary-service"></span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Categoría:</span>
+                                        <span class="fw-medium" id="summary-category"></span>
                                     </div>
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>Fecha:</span>
@@ -706,10 +793,53 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                         <span>Participantes:</span>
                                         <span class="fw-medium" id="summary-participants"></span>
                                     </div>
+                                    
+                                    <h6 class="mt-4 mb-3 border-bottom pb-2">Datos del Cliente</h6>
                                     <div class="d-flex justify-content-between mb-2">
-                                        <span>Método de pago:</span>
+                                        <span>Nombre:</span>
+                                        <span class="fw-medium" id="summary-client-name"></span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Email:</span>
+                                        <span class="fw-medium" id="summary-client-email"></span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Teléfono:</span>
+                                        <span class="fw-medium" id="summary-client-phone"></span>
+                                    </div>
+                                    
+                                    <h6 class="mt-4 mb-3 border-bottom pb-2">Método de Pago</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Forma de pago:</span>
                                         <span class="fw-medium" id="summary-payment"></span>
                                     </div>
+                                    <div id="summary-payment-details" class="mb-2" style="display: none;">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="ps-3">Banco:</span>
+                                            <span class="fw-medium" id="summary-bank-name"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="ps-3">Número de cuenta:</span>
+                                            <span class="fw-medium" id="summary-account-number"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="ps-3">Tipo de cuenta:</span>
+                                            <span class="fw-medium" id="summary-account-type"></span>
+                                        </div>
+                                    </div>
+                                    
+                                    <h6 class="mt-4 mb-3 border-bottom pb-2">Resumen de Costos</h6>
+                                    <div id="summary-subtotal-row" class="d-flex justify-content-between mb-2">
+                                        <!-- Aquí se mostrará el subtotal -->
+                                    </div>
+                                    <div id="summary-discount-row" class="d-flex justify-content-between mb-2" style="display: none;">
+                                        <!-- Aquí se mostrará el descuento -->
+                                    </div>
+                                    
+                                    <div id="summary-articles-container" class="mb-3">
+                                        <!-- Aquí se mostrarán los artículos seleccionados -->
+                                    </div>
+                                    
                                     <hr>
                                     <div class="d-flex justify-content-between">
                                         <span class="h6">Total:</span>
@@ -781,7 +911,24 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-4 mb-3 mb-md-0">
-                                    <img id="tour-image" src="" alt="Imagen del tour" class="img-fluid rounded" style="object-fit: cover; height: 200px; width: 100%;">                                        
+                                    <!-- Carrusel de imágenes -->
+                                    <div id="tourGalleryCarousel" class="carousel slide" data-bs-ride="carousel">
+                                        <div class="carousel-indicators" id="carousel-indicators"></div>
+                                        <div class="carousel-inner" id="carousel-inner">
+                                            <!-- Las imágenes se cargarán dinámicamente aquí -->
+                                            <div class="carousel-item active">
+                                                <img id="tour-image" src="" alt="Imagen del tour" class="d-block w-100 rounded" style="object-fit: cover; height: 200px;">
+                                            </div>
+                                        </div>
+                                        <button class="carousel-control-prev" type="button" data-bs-target="#tourGalleryCarousel" data-bs-slide="prev">
+                                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Anterior</span>
+                                        </button>
+                                        <button class="carousel-control-next" type="button" data-bs-target="#tourGalleryCarousel" data-bs-slide="next">
+                                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Siguiente</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="col-md-8">
                                     <h4 id="tour-title" class="mb-2"></h4>
@@ -790,6 +937,11 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                         <span class="text-muted"><i class="fas fa-calendar me-1"></i><span id="tour-date-display">Fecha del tour</span></span>
                                     </div>
                                     <p id="tour-description" class="mb-3"></p>
+                                    <div id="youtube-button-container" style="display: none;" class="mb-3">
+                                        <a href="#" id="youtube-promo-link" target="_blank" class="btn btn-danger">
+                                            <i class="fab fa-youtube me-2"></i> Ver Video Promocional
+                                        </a>
+                                    </div>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <span class="h5 mb-0" id="tour-price"></span>
@@ -806,9 +958,13 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                             <input type="number" class="form-control" id="tour-participants" name="tour_participants" min="1" value="1" required>
                         </div>
                     </div>
-                    <div class="alert alert-info">
+                    <div class="alert alert-info" id="reservation-message-modal">
                         <i class="fas fa-info-circle me-2"></i>
                         <span>Selecciona la fecha y el número de participantes para continuar con tu reserva.</span>
+                    </div>
+                    <div class="alert alert-success" id="discount-message-modal" style="display: none;">
+                        <i class="fas fa-tag me-2"></i>
+                        <span id="discount-text-modal"></span>
                     </div>
                     <div class="d-flex justify-content-end mt-4">
                         <button type="button" class="btn btn-reserve btn-next">Continuar <i class="fas fa-arrow-right ms-2"></i></button>
@@ -946,6 +1102,12 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                 <span>Método de pago:</span>
                                 <span class="fw-medium" id="summary-payment"></span>
                             </div>
+                            <div id="summary-subtotal-row" class="d-flex justify-content-between mb-2">
+                                <!-- Aquí se mostrará el subtotal -->
+                            </div>
+                            <div id="summary-discount-row" class="d-flex justify-content-between mb-2" style="display: none;">
+                                <!-- Aquí se mostrará el descuento -->
+                            </div>
                             <div id="summary-articles-container">
                                 <!-- Aquí se mostrarán los artículos seleccionados -->
                             </div>
@@ -991,6 +1153,83 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             });
         }
 
+        // Función para cargar las imágenes de la galería en el carrusel
+        function loadGalleryImages(serviceId) {
+            const carouselInner = document.getElementById('carousel-inner');
+            const carouselIndicators = document.getElementById('carousel-indicators');
+            
+            // Limpiar el carrusel
+            carouselInner.innerHTML = '';
+            carouselIndicators.innerHTML = '';
+            
+            // Obtener las imágenes de la galería para este servicio
+            let galleryImages = [];
+            
+            <?php foreach ($services as $service): ?>
+            if (serviceId === '<?php echo $service->id; ?>') {
+                <?php if (isset($service_galleries[$service->id]) && !empty($service_galleries[$service->id])): ?>
+                galleryImages = [
+                    '<?php echo esc_url($service->main_image ? $service->main_image : plugins_url('assets/images/default-service.svg', dirname(__FILE__))); ?>',
+                    <?php foreach ($service_galleries[$service->id] as $image): ?>
+                    '<?php echo esc_url($image->image_url); ?>',
+                    <?php endforeach; ?>
+                ];
+                <?php else: ?>
+                galleryImages = ['<?php echo esc_url($service->main_image ? $service->main_image : plugins_url('assets/images/default-service.svg', dirname(__FILE__))); ?>'];
+                <?php endif; ?>
+            }
+            <?php endforeach; ?>
+            
+            // Si no hay imágenes, mostrar la imagen principal
+            if (galleryImages.length === 0) {
+                galleryImages = [document.getElementById('tour-image').src];
+            }
+            
+            // Crear los elementos del carrusel
+            galleryImages.forEach((imageUrl, index) => {
+                // Crear indicador
+                const indicator = document.createElement('button');
+                indicator.type = 'button';
+                indicator.setAttribute('data-bs-target', '#tourGalleryCarousel');
+                indicator.setAttribute('data-bs-slide-to', index.toString());
+                if (index === 0) {
+                    indicator.classList.add('active');
+                }
+                indicator.setAttribute('aria-current', index === 0 ? 'true' : 'false');
+                indicator.setAttribute('aria-label', `Slide ${index + 1}`);
+                carouselIndicators.appendChild(indicator);
+                
+                // Crear item del carrusel
+                const carouselItem = document.createElement('div');
+                carouselItem.classList.add('carousel-item');
+                if (index === 0) {
+                    carouselItem.classList.add('active');
+                }
+                
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.classList.add('d-block', 'w-100', 'rounded');
+                img.alt = `Imagen ${index + 1} del tour`;
+                img.style.objectFit = 'cover';
+                img.style.height = '200px';
+                
+                carouselItem.appendChild(img);
+                carouselInner.appendChild(carouselItem);
+            });
+            
+            // Mostrar u ocultar controles del carrusel según la cantidad de imágenes
+            const carouselControls = document.querySelectorAll('.carousel-control-prev, .carousel-control-next');
+            const carouselIndicatorsContainer = document.getElementById('carousel-indicators');
+            
+            if (galleryImages.length <= 1) {
+                carouselControls.forEach(control => control.style.display = 'none');
+                carouselIndicatorsContainer.style.display = 'none';
+            } else {
+                carouselControls.forEach(control => control.style.display = 'flex');
+                carouselIndicatorsContainer.style.display = 'flex';
+            }
+        }
+        
         // Manejador para los botones de reserva
         document.querySelectorAll('.btn-reserve:not(.btn-next):not([type="submit"])').forEach(button => {
             button.addEventListener('click', function() {
@@ -1000,7 +1239,20 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                 document.getElementById('tour-category').textContent = serviceData.serviceCategory;
                 document.getElementById('tour-description').textContent = serviceData.serviceDescription;
                 document.getElementById('tour-price').textContent = `$${parseFloat(serviceData.servicePrice).toFixed(2)}`;
-                document.getElementById('tour-image').src = serviceData.serviceImage;
+                
+                // Cargar las imágenes de la galería en el carrusel
+                loadGalleryImages(serviceData.serviceId);
+                
+                // Mostrar u ocultar el botón de YouTube según corresponda
+                const youtubeButtonContainer = document.getElementById('youtube-button-container');
+                const youtubePromoLink = document.getElementById('youtube-promo-link');
+                
+                if (serviceData.servicePromoVideo && serviceData.servicePromoVideo.trim() !== '') {
+                    youtubePromoLink.href = serviceData.servicePromoVideo;
+                    youtubeButtonContainer.style.display = 'block';
+                } else {
+                    youtubeButtonContainer.style.display = 'none';
+                }
                 
                 // Mostrar la fecha del tour
                 const today = new Date();
@@ -1009,7 +1261,8 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                 
                 // Actualizar el resumen
                 document.getElementById('summary-service').textContent = serviceData.serviceName;
-                document.getElementById('summary-total').textContent = `$${parseFloat(serviceData.servicePrice).toFixed(2)}`;
+                
+                // No establecer el total aquí, se calculará en updateSummary() con el descuento aplicado
 
                 // Mostrar/ocultar paso de artículos según corresponda
                 const articlesStep = document.getElementById('articles-step');
@@ -1115,45 +1368,315 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             }
         }
         
+        // Función para verificar si aplica algún descuento
+        function checkDiscounts(participants) {
+            const serviceId = document.getElementById('service-id').value;
+            let discountApplied = null;
+            
+            // Obtener los descuentos disponibles para este servicio
+            <?php foreach ($services as $service): ?>
+            if (serviceId === '<?php echo $service->id; ?>') {
+                <?php if (isset($service_discounts[$service->id]) && !empty($service_discounts[$service->id])): ?>
+                    <?php foreach ($service_discounts[$service->id] as $discount): ?>
+                        <?php if ($discount->condition_type === 'people'): ?>
+                        if (parseInt(participants) > <?php echo $discount->condition_value; ?> && !discountApplied) {
+                            discountApplied = {
+                                type: '<?php echo $discount->discount_type; ?>',
+                                value: <?php echo $discount->discount_value; ?>,
+                                title: '<?php echo $discount->title; ?>',
+                                description: '<?php echo $discount->description; ?>',
+                                conditionValue: <?php echo $discount->condition_value; ?>,
+                                conditionType: 'people'
+                            };
+                        }
+                        <?php endif; ?>
+                        <?php if ($discount->condition_type === 'price'): ?>
+                        // Verificar descuento por monto total
+                        const servicePrice = document.getElementById('tour-price').textContent;
+                        const price = parseFloat(servicePrice.replace('$', ''));
+                        const participantsCount = parseInt(participants);
+                        const subtotal = price * participantsCount;
+                        
+                        if (subtotal > <?php echo $discount->condition_value; ?> && !discountApplied) {
+                            discountApplied = {
+                                type: '<?php echo $discount->discount_type; ?>',
+                                value: <?php echo $discount->discount_value; ?>,
+                                title: '<?php echo $discount->title; ?>',
+                                description: '<?php echo $discount->description; ?>',
+                                conditionValue: <?php echo $discount->condition_value; ?>,
+                                conditionType: 'price'
+                            };
+                        }
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            }
+            <?php endforeach; ?>
+            
+            return discountApplied;
+        }
+        
+        // Función para actualizar el mensaje de descuento
+        function updateDiscountMessage(participants) {
+            const reservationMsg = document.getElementById('reservation-message');
+            const discountMsg = document.getElementById('discount-message');
+            const discountText = document.getElementById('discount-text');
+            
+            // También actualizar los elementos del modal
+            const reservationMsgModal = document.getElementById('reservation-message-modal');
+            const discountMsgModal = document.getElementById('discount-message-modal');
+            const discountTextModal = document.getElementById('discount-text-modal');
+            
+            const discount = checkDiscounts(participants);
+            
+            if (discount) {
+                // Mostrar mensaje de descuento
+                let message = '';
+                
+                if (discount.conditionType === 'people') {
+                    message = `¡Genial! Por reservar para más de ${discount.conditionValue} personas, `;
+                } else if (discount.conditionType === 'price') {
+                    message = `¡Genial! Por un monto mayor a $${discount.conditionValue.toFixed(2)}, `;
+                }
+                
+                if (discount.type === 'percentage') {
+                    message += `obtienes un ${discount.value}% de descuento`;
+                } else {
+                    message += `obtienes un descuento de $${discount.value.toFixed(2)}`;
+                }
+                
+                if (discount.description) {
+                    message += `. ${discount.description}`;
+                }
+                
+                // Calcular y mostrar el precio con descuento
+                const servicePrice = document.getElementById('tour-price').textContent;
+                const price = parseFloat(servicePrice.replace('$', ''));
+                const participantsCount = parseInt(participants);
+                const subtotal = price * participantsCount;
+                const discountAmount = getDiscountAmount(price, participantsCount, discount);
+                const finalPrice = subtotal - discountAmount;
+                
+                // Añadir información de precio al mensaje
+                message += `<br><span class="text-decoration-line-through text-muted">$${subtotal.toFixed(2)}</span> <span class="fw-bold">$${finalPrice.toFixed(2)}</span>`;
+                
+                // Actualizar mensaje en la página principal
+                if (discountText) {
+                    discountText.innerHTML = message;
+                    reservationMsg.style.display = 'none';
+                    discountMsg.style.display = 'block';
+                }
+                
+                // Actualizar mensaje en el modal
+                if (discountTextModal) {
+                    discountTextModal.innerHTML = message;
+                    reservationMsgModal.style.display = 'none';
+                    discountMsgModal.style.display = 'block';
+                }
+                
+                return discount;
+            } else {
+                // Mostrar mensaje normal en la página principal
+                if (reservationMsg) {
+                    reservationMsg.style.display = 'block';
+                    discountMsg.style.display = 'none';
+                }
+                
+                // Mostrar mensaje normal en el modal
+                if (reservationMsgModal) {
+                    reservationMsgModal.style.display = 'block';
+                    discountMsgModal.style.display = 'none';
+                }
+                
+                return null;
+            }
+        }
+        
+        // Función para calcular el precio con descuento
+        function calculatePriceWithDiscount(basePrice, participants, discount) {
+            if (!discount) return basePrice * participants;
+            
+            const subtotal = basePrice * participants;
+            
+            if (discount.type === 'percentage') {
+                const discountAmount = subtotal * (discount.value / 100);
+                return subtotal - discountAmount;
+            } else {
+                return subtotal - discount.value;
+            }
+        }
+        
+        // Función para obtener el monto del descuento
+        function getDiscountAmount(basePrice, participants, discount) {
+            if (!discount) return 0;
+            
+            const subtotal = basePrice * participants;
+            
+            if (discount.type === 'percentage') {
+                return subtotal * (discount.value / 100);
+            } else {
+                return discount.value;
+            }
+        }
+        
         // Función para actualizar el resumen
         function updateSummary() {
+            // Obtener datos del servicio
             const serviceName = document.getElementById('tour-title').textContent;
+            const serviceCategory = document.getElementById('tour-category').textContent;
             const serviceDate = document.getElementById('tour-date-display').textContent;
-            const participants = document.getElementById('tour-participants').value;
-            const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+            const participants = document.getElementById('tour-participants').value || 1;
             const servicePrice = document.getElementById('tour-price').textContent;
             
+            // Obtener datos del cliente
+            const clientName = document.getElementById('client-name').value;
+            const clientEmail = document.getElementById('client-email').value;
+            const clientPhone = document.getElementById('client-phone').value;
+            
+            // Obtener método de pago
+            const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'cash';
+            const paymentMethodText = paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Pago en Efectivo';
+            
+            // Actualizar información del servicio
             document.getElementById('summary-service').textContent = serviceName;
+            if (document.getElementById('summary-category')) {
+                document.getElementById('summary-category').textContent = serviceCategory;
+            }
             document.getElementById('summary-date').textContent = serviceDate;
             document.getElementById('summary-participants').textContent = participants;
-            document.getElementById('summary-payment').textContent = paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Pago en Efectivo';
+            
+            // Actualizar información del cliente si existen los elementos
+            if (document.getElementById('summary-client-name')) {
+                document.getElementById('summary-client-name').textContent = clientName || 'No especificado';
+            }
+            if (document.getElementById('summary-client-email')) {
+                document.getElementById('summary-client-email').textContent = clientEmail || 'No especificado';
+            }
+            if (document.getElementById('summary-client-phone')) {
+                document.getElementById('summary-client-phone').textContent = clientPhone || 'No especificado';
+            }
+            
+            // Actualizar método de pago
+            document.getElementById('summary-payment').textContent = paymentMethodText;
+            
+            // Mostrar detalles de transferencia bancaria si aplica
+            const paymentDetailsContainer = document.getElementById('summary-payment-details');
+            if (paymentDetailsContainer) {
+                if (paymentMethod === 'transfer') {
+                    const bankName = document.getElementById('bank-name')?.value || '';
+                    const accountNumber = document.getElementById('account-number')?.value || '';
+                    const accountType = document.getElementById('account-type')?.value || '';
+                    
+                    if (document.getElementById('summary-bank-name')) {
+                        document.getElementById('summary-bank-name').textContent = bankName || 'No especificado';
+                    }
+                    if (document.getElementById('summary-account-number')) {
+                        document.getElementById('summary-account-number').textContent = accountNumber || 'No especificado';
+                    }
+                    if (document.getElementById('summary-account-type')) {
+                        document.getElementById('summary-account-type').textContent = accountType || 'No especificado';
+                    }
+                    
+                    paymentDetailsContainer.style.display = 'block';
+                } else {
+                    paymentDetailsContainer.style.display = 'none';
+                }
+            }
+            
+            // Verificar si aplica algún descuento
+            const discount = checkDiscounts(participants);
             
             // Calcular el total
             const price = parseFloat(servicePrice.replace('$', ''));
-            const participantsTotal = price * parseInt(participants);
+            const subtotal = price * parseInt(participants);
+            let participantsTotal = subtotal;
+            let discountAmount = 0;
             
-            // Añadir el costo de los artículos seleccionados
-            const articlesSubtotal = parseFloat(document.getElementById('articles-subtotal').textContent.replace('$', '')) || 0;
-            const total = participantsTotal + articlesSubtotal;
+            // Actualizar subtotal
+            const subtotalRow = document.getElementById('summary-subtotal-row');
+            if (subtotalRow) {
+                subtotalRow.innerHTML = `
+                    <span>Subtotal (${participants} x $${price.toFixed(2)}):</span>
+                    <span>$${subtotal.toFixed(2)}</span>
+                `;
+            }
+            
+            // Mostrar información de descuento si aplica
+            const discountRow = document.getElementById('summary-discount-row');
+            
+            if (discountRow) {
+                if (discount) {
+                    // Calcular el monto del descuento
+                    if (discount.type === 'percentage') {
+                        discountAmount = subtotal * (discount.value / 100);
+                    } else {
+                        discountAmount = discount.value;
+                    }
+                    
+                    participantsTotal = subtotal - discountAmount;
+                    
+                    let discountText = '';
+                    if (discount.type === 'percentage') {
+                        discountText = `Descuento (${discount.value}%)`;
+                    } else {
+                        discountText = 'Descuento';
+                    }
+                    
+                    // Añadir información sobre la condición del descuento
+                    if (discount.conditionType === 'people') {
+                        discountText += ` por más de ${discount.conditionValue} personas`;
+                    } else if (discount.conditionType === 'price') {
+                        discountText += ` por monto mayor a $${discount.conditionValue.toFixed(2)}`;
+                    }
+                    
+                    // Añadir el título del descuento si está disponible
+                    if (discount.title) {
+                        discountText = `${discount.title} (${discountText})`;
+                    }
+                    
+                    discountRow.innerHTML = `
+                        <span class="text-success">${discountText}:</span>
+                        <span class="text-success">-$${discountAmount.toFixed(2)}</span>
+                    `;
+                    
+                    // Asegurarse de que el descuento sea visible
+                    discountRow.style.display = 'flex';
+                } else {
+                    discountRow.style.display = 'none';
+                }
+            }
+            
+            // Calcular el subtotal de artículos en tiempo real
+            let articlesTotal = 0;
+            const selectedArticles = [];
+            
+            // Obtener todos los artículos seleccionados
+            document.querySelectorAll('.article-item').forEach(item => {
+                const quantity = parseInt(item.querySelector('.article-quantity').value);
+                if (quantity > 0) {
+                    const name = item.querySelector('.article-name').textContent;
+                    const price = parseFloat(item.querySelector('.article-price').dataset.price);
+                    selectedArticles.push({ name, quantity, price });
+                    
+                    // Sumar al total de artículos si el precio no es 0
+                    if (price > 0) {
+                        articlesTotal += price * quantity;
+                    }
+                }
+            });
             
             // Actualizar el resumen con los artículos seleccionados
             const articlesContainer = document.getElementById('summary-articles-container');
             if (articlesContainer) {
                 articlesContainer.innerHTML = '';
                 
-                // Obtener todos los artículos seleccionados
-                const selectedArticles = [];
-                document.querySelectorAll('.article-item').forEach(item => {
-                    const quantity = parseInt(item.querySelector('.article-quantity').value);
-                    if (quantity > 0) {
-                        const name = item.querySelector('.article-name').textContent;
-                        const price = parseFloat(item.querySelector('.article-price').dataset.price);
-                        selectedArticles.push({ name, quantity, price });
-                    }
-                });
-                
                 // Mostrar los artículos seleccionados en el resumen
                 if (selectedArticles.length > 0) {
+                    const articlesTitle = document.createElement('h6');
+                    articlesTitle.className = 'mt-3 mb-2 border-bottom pb-2';
+                    articlesTitle.textContent = 'Artículos Seleccionados';
+                    articlesContainer.appendChild(articlesTitle);
+                    
                     const articlesList = document.createElement('div');
                     articlesList.className = 'mt-2';
                     
@@ -1168,9 +1691,10 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                                 <span class="fw-bold text-success">INCLUIDO</span>
                             `;
                         } else {
+                            const articleTotal = article.price * article.quantity;
                             articleRow.innerHTML = `
                                 <span>${article.quantity}x ${article.name}</span>
-                                <span>$${(article.price * article.quantity).toFixed(2)}</span>
+                                <span>$${articleTotal.toFixed(2)}</span>
                             `;
                         }
                         
@@ -1178,10 +1702,28 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     });
                     
                     articlesContainer.appendChild(articlesList);
+                    
+                    // Mostrar subtotal de artículos si hay artículos con precio
+                    if (articlesTotal > 0) {
+                        const articlesSubtotalRow = document.createElement('div');
+                        articlesSubtotalRow.className = 'd-flex justify-content-between mt-2';
+                        articlesSubtotalRow.innerHTML = `
+                            <span class="fw-medium">Subtotal artículos:</span>
+                            <span>$${articlesTotal.toFixed(2)}</span>
+                        `;
+                        articlesContainer.appendChild(articlesSubtotalRow);
+                    }
                 }
             }
             
+            // Calcular el total final
+            const total = participantsTotal + articlesTotal;
+            
+            // Actualizar el total en el resumen
             document.getElementById('summary-total').textContent = `$${total.toFixed(2)}`;
+            
+            // Ya no necesitamos mostrar el precio original tachado junto al precio con descuento
+            // porque ahora mostramos el subtotal y el descuento por separado antes del total
         }
         
         // Manejar la visibilidad de los campos de transferencia bancaria
@@ -1192,6 +1734,24 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     bankTransferDetails.style.display = 'block';
                 } else {
                     bankTransferDetails.style.display = 'none';
+                }
+            });
+        });
+        
+        // Añadir event listener al campo de participantes para verificar descuentos
+        document.querySelectorAll('#tour-participants').forEach(input => {
+            input.addEventListener('change', function() {
+                const discount = updateDiscountMessage(this.value);
+                // Actualizar el precio en tiempo real si hay un cambio en el número de participantes
+                if (document.getElementById('step-5').style.display === 'block') {
+                    updateSummary();
+                }
+            });
+            input.addEventListener('input', function() {
+                const discount = updateDiscountMessage(this.value);
+                // Actualizar el precio en tiempo real si hay un cambio en el número de participantes
+                if (document.getElementById('step-5').style.display === 'block') {
+                    updateSummary();
                 }
             });
         });
@@ -1214,6 +1774,12 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             
             // Mostrar cargando y ocultar la lista
             loadingAlert.style.display = 'block';
+            loadingAlert.innerHTML = `
+                <i class="fas fa-spinner fa-spin me-2"></i>
+                <span>Cargando artículos disponibles...</span>
+            `;
+            loadingAlert.classList.remove('alert-danger');
+            loadingAlert.classList.add('alert-info');
             articlesList.style.display = 'none';
             articlesList.innerHTML = '';
             
@@ -1234,31 +1800,38 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     
                     // Verificar si la respuesta contiene un error
                     if (response.success === false) {
-                        throw new Error(response.data?.message || 'Error al cargar los artículos');
+                        throw new Error(response.data?.message || response.message || 'Error al cargar los artículos');
                     }
                     
-                    // Obtener los artículos de la nueva estructura de respuesta
+                    // Obtener los artículos de la estructura de respuesta
                     const articles = response.data || [];
                     
+                    // Verificar si tenemos artículos
                     if (articles.length > 0) {
                         // Crear elementos para cada artículo
                         articles.forEach(article => {
+                            // Asegurarse de que los valores sean correctos
+                            const articleId = article.id || 0;
+                            const articleName = article.name || 'Artículo sin nombre';
+                            const articleDesc = article.description || 'Sin descripción';
+                            const articlePrice = parseFloat(article.price) || 0;
+                            
                             const articleElement = document.createElement('div');
                             articleElement.className = 'col-md-6 col-lg-4';
                             articleElement.innerHTML = `
-                                <div class="card h-100 article-item" data-article-id="${article.id}">
+                                <div class="card h-100 article-item" data-article-id="${articleId}">
                                     <div class="card-body">
-                                        <h6 class="card-title article-name">${article.name}</h6>
-                                        <p class="card-text small text-muted">${article.description || 'Sin descripción'}</p>
+                                        <h6 class="card-title article-name">${articleName}</h6>
+                                        <p class="card-text small text-muted">${articleDesc}</p>
                                         <div class="d-flex justify-content-between align-items-center mt-3">
-                                            ${parseFloat(article.price) === 0 ? 
-                                                `<span class="article-price fw-bold text-success" data-price="${article.price}">INCLUIDO</span>` : 
-                                                `<span class="article-price" data-price="${article.price}">$${parseFloat(article.price).toFixed(2)}</span>`
+                                            ${articlePrice === 0 ? 
+                                                `<span class="article-price fw-bold text-success" data-price="${articlePrice}">INCLUIDO</span>` : 
+                                                `<span class="article-price" data-price="${articlePrice}">$${articlePrice.toFixed(2)}</span>`
                                             }
-                                            <div class="quantity-control d-flex align-items-center ${parseFloat(article.price) === 0 ? 'invisible' : ''}">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary decrease-quantity" ${parseFloat(article.price) === 0 ? 'disabled' : ''}>-</button>
-                                                <input type="number" class="form-control form-control-sm mx-2 text-center article-quantity" value="${parseFloat(article.price) === 0 ? '1' : '0'}" min="0" max="99" style="width: 50px;" ${parseFloat(article.price) === 0 ? 'readonly' : ''}>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary increase-quantity" ${parseFloat(article.price) === 0 ? 'disabled' : ''}>+</button>
+                                            <div class="quantity-control d-flex align-items-center ${articlePrice === 0 ? 'invisible' : ''}">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary decrease-quantity" ${articlePrice === 0 ? 'disabled' : ''}>-</button>
+                                                <input type="number" class="form-control form-control-sm mx-2 text-center article-quantity" value="${articlePrice === 0 ? '1' : '0'}" min="0" max="99" style="width: 50px;" ${articlePrice === 0 ? 'readonly' : ''}>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary increase-quantity" ${articlePrice === 0 ? 'disabled' : ''}>+</button>
                                             </div>
                                         </div>
                                         <div class="mt-2 text-end">
@@ -1275,6 +1848,9 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                         
                         // Agregar event listeners para los controles de cantidad
                         addQuantityControlListeners();
+                        
+                        // Actualizar subtotales iniciales
+                        updateArticlesSubtotal();
                     } else {
                         // No hay artículos disponibles
                         loadingAlert.innerHTML = `
@@ -1288,7 +1864,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     console.error('Error al cargar los artículos:', error);
                     loadingAlert.innerHTML = `
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        <span>Error al cargar los artículos. Por favor, inténtalo de nuevo.</span>
+                        <span>Error al cargar los artículos: ${error.message}</span>
                     `;
                     loadingAlert.classList.remove('alert-info');
                     loadingAlert.classList.add('alert-danger');
@@ -1349,7 +1925,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
                     const subtotal = price * value;
                     articleItem.querySelector('.article-subtotal').textContent = `$${subtotal.toFixed(2)}`;
                     
-                    // Actualizar subtotal general de artículos
+                    // Actualizar subtotal general de artículos y el resumen si es necesario
                     updateArticlesSubtotal();
                 });
             });
@@ -1368,6 +1944,11 @@ $categories = $wpdb->get_results("SELECT * FROM {$categories_table}");
             });
             
             document.getElementById('articles-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            
+            // Si estamos en el paso de confirmación, actualizar el resumen
+            if (document.getElementById('step-5').style.display === 'block') {
+                updateSummary();
+            }
         }
         
         // Prevenir cierre del modal al hacer clic fuera o con ESC

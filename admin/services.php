@@ -254,6 +254,25 @@ function wbs_save_service() {
                 )
             );
         }
+        
+        // Guardar descuentos asociados
+        $table_service_discounts = $wpdb->prefix . 'wbs_service_discounts';
+        $wpdb->delete($table_service_discounts, array('service_id' => $service_id));
+        
+        if (isset($_POST['discounts']) && is_array($_POST['discounts'])) {
+            foreach ($_POST['discounts'] as $discount_id) {
+                $discount_id = intval($discount_id);
+                if ($discount_id > 0) {
+                    $wpdb->insert(
+                        $table_service_discounts,
+                        array(
+                            'service_id' => $service_id,
+                            'discount_id' => $discount_id,
+                        )
+                    );
+                }
+            }
+        }
 
         // Redirigir después de guardar
         wp_redirect(admin_url('admin.php?page=wbs-services&action=edit&id=' . $service_id . '&message=1'));
@@ -507,6 +526,74 @@ function wbs_service_form() {
                                         </td>
                                     </tr>
                                 </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Descuentos -->
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2 class="hndle ui-sortable-handle"><?php echo esc_html__('Descuentos', 'wp-booking-services'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <p class="description"><?php echo esc_html__('Selecciona los descuentos aplicables a este servicio', 'wp-booking-services'); ?></p>
+                                <div class="discounts-container">
+                                    <?php
+                                    $table_discounts = $wpdb->prefix . 'wbs_discounts';
+                                    $table_service_discounts = $wpdb->prefix . 'wbs_service_discounts';
+                                    $discounts = $wpdb->get_results("SELECT * FROM $table_discounts WHERE status = 'active' ORDER BY title ASC");
+                                    
+                                    // Obtener descuentos asociados al servicio si existe
+                                    $selected_discounts = array();
+                                    if ($service_id > 0) {
+                                        $selected_discounts_results = $wpdb->get_results($wpdb->prepare(
+                                            "SELECT discount_id FROM $table_service_discounts WHERE service_id = %d",
+                                            $service_id
+                                        ));
+                                        foreach ($selected_discounts_results as $discount) {
+                                            $selected_discounts[] = $discount->discount_id;
+                                        }
+                                    }
+                                    
+                                    if (empty($discounts)) {
+                                        echo '<p>' . esc_html__('No hay descuentos disponibles. ', 'wp-booking-services') . 
+                                             '<a href="' . esc_url(admin_url('admin.php?page=wbs-discounts&action=add')) . '">' . 
+                                             esc_html__('Crear un descuento', 'wp-booking-services') . '</a></p>';
+                                    } else {
+                                        echo '<div class="discount-options">';
+                                        foreach ($discounts as $discount) {
+                                            $checked = in_array($discount->id, $selected_discounts) ? 'checked' : '';
+                                            $discount_label = esc_html($discount->title);
+                                            
+                                            // Añadir información del descuento al label
+                                            if ($discount->discount_type === 'percentage') {
+                                                $discount_value = $discount->discount_value . '%';
+                                            } else {
+                                                $discount_value = '$' . number_format($discount->discount_value, 2);
+                                            }
+                                            
+                                            if ($discount->condition_type === 'price') {
+                                                $condition = sprintf(__('si precio > $%s', 'wp-booking-services'), 
+                                                                  number_format($discount->condition_value, 2));
+                                            } else {
+                                                $condition = sprintf(__('si personas > %s', 'wp-booking-services'), 
+                                                                  $discount->condition_value);
+                                            }
+                                            
+                                            echo '<div class="discount-option">';
+                                            echo '<label>';
+                                            echo '<input type="checkbox" name="discounts[]" value="' . esc_attr($discount->id) . '" ' . $checked . '>';
+                                            echo '<span class="discount-title">' . $discount_label . '</span>';
+                                            echo '<span class="discount-details"> - ' . $discount_value . ' ' . $condition . '</span>';
+                                            echo '</label>';
+                                            if (!empty($discount->description)) {
+                                                echo '<p class="discount-description">' . esc_html($discount->description) . '</p>';
+                                            }
+                                            echo '</div>';
+                                        }
+                                        echo '</div>';
+                                    }
+                                    ?>
+                                </div>
                             </div>
                         </div>
                     </div>

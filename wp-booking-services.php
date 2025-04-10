@@ -97,22 +97,27 @@ function wbs_deactivate() {
     // Eliminar todas las tablas del plugin
     $table_gallery = $wpdb->prefix . 'wbs_service_gallery';
     $table_articles = $wpdb->prefix . 'wbs_articles';
+    $table_service_discounts = $wpdb->prefix . 'wbs_service_discounts';
     $table_services = $wpdb->prefix . 'wbs_services';
     $table_categories = $wpdb->prefix . 'wbs_categories';
     $table_article_groups = $wpdb->prefix . 'wbs_article_groups';
+    $table_discounts = $wpdb->prefix . 'wbs_discounts';
     
     // Eliminar primero las tablas con claves foráneas
     $wpdb->query("DROP TABLE IF EXISTS $table_gallery");
     $wpdb->query("DROP TABLE IF EXISTS $table_articles");
+    $wpdb->query("DROP TABLE IF EXISTS $table_service_discounts");
     $wpdb->query("DROP TABLE IF EXISTS $table_services");
     $wpdb->query("DROP TABLE IF EXISTS $table_categories");
     $wpdb->query("DROP TABLE IF EXISTS $table_article_groups");
+    $wpdb->query("DROP TABLE IF EXISTS $table_discounts");
 }
 register_deactivation_hook(__FILE__, 'wbs_deactivate');
 
 // Incluir archivos necesarios
 require_once WBS_PLUGIN_DIR . 'includes/database.php';
 require_once WBS_PLUGIN_DIR . 'includes/ajax-functions.php';
+require_once WBS_PLUGIN_DIR . 'includes/discounts.php';
 require_once WBS_PLUGIN_DIR . 'admin/welcome-page.php';
 require_once WBS_PLUGIN_DIR . 'admin/admin-menu.php';
 require_once WBS_PLUGIN_DIR . 'admin/services.php';

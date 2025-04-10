@@ -107,9 +107,6 @@ function wbs_get_group_articles() {
     // Verificar nonce para seguridad
     // check_ajax_referer('wbs_ajax_nonce', 'nonce');
     
-    // Asegurar que la respuesta sea siempre JSON
-    header('Content-Type: application/json');
-    
     $group_id = isset($_GET['group_id']) ? intval($_GET['group_id']) : 0;
     
     if ($group_id <= 0) {
@@ -123,7 +120,7 @@ function wbs_get_group_articles() {
     
     // Obtener artículos del grupo
     $articles = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $table_articles WHERE group_id = %d ORDER BY id ASC",
+        "SELECT * FROM {$table_articles} WHERE group_id = %d ORDER BY id ASC",
         $group_id
     ));
     
@@ -143,9 +140,8 @@ function wbs_get_group_articles() {
     // Limpiar cualquier salida anterior
     ob_end_clean();
     
-    // Asegurar que siempre devolvemos un objeto JSON válido
+    // Usar wp_send_json para asegurar una respuesta JSON válida
     wp_send_json(array('success' => true, 'data' => $formatted_articles));
-    exit;
 }
 
 // Registrar la función para usuarios autenticados y no autenticados
