@@ -121,4 +121,22 @@ function wbs_create_tables() {
     dbDelta($sql_service_discounts);
     $wpdb->query($sql_add_category_relation);
     $wpdb->query($sql_add_group_relation);
+
+    // Tabla de reservas
+    $table_reservations = $wpdb->prefix . 'wbs_reservations';
+    $sql_reservations = "CREATE TABLE IF NOT EXISTS $table_reservations (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        service_id bigint(20) NOT NULL,
+        reservation_date date NOT NULL,
+        participants int NOT NULL,
+        payment_method varchar(50) NOT NULL,
+        total_amount decimal(10,2) NOT NULL,
+        status varchar(20) NOT NULL DEFAULT 'pending',
+        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        FOREIGN KEY (service_id) REFERENCES $table_services(id) ON DELETE CASCADE
+    ) $charset_collate;";
+
+    dbDelta($sql_reservations);
 }
