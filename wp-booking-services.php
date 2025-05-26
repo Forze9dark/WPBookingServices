@@ -70,23 +70,26 @@ function wbs_activate() {
         }
     }
 
-    // Crear las tablas en la base de datos
-    wbs_create_tables();
-
-    // Verificar si ya existe la página de Catálogo Servicios
-    $existing_page = get_page_by_title('Catálogo Servicios');
-    
-    if (!$existing_page) {
-        // Crear la página de Catálogo Servicios solo si no existe
-        $catalog_page = array(
-            'post_title'    => 'Catálogo Servicios',
-            'post_content'  => '',
+    // Crear la página de reservas si no existe
+    $booking_page = get_page_by_path('reservas');
+    if (!$booking_page) {
+        $booking_page_data = array(
+            'post_title'    => 'Reservas',
+            'post_name'     => 'reservas',
             'post_status'   => 'publish',
             'post_type'     => 'page',
-            'page_template' => 'template-catalog.php'
+            'post_content'  => '',
+            'page_template' => 'template-booking.php'
         );
-        wp_insert_post($catalog_page);
+        
+        $booking_page_id = wp_insert_post($booking_page_data);
+        if ($booking_page_id) {
+            update_post_meta($booking_page_id, '_wp_page_template', 'template-booking.php');
+        }
     }
+
+    // Crear las tablas en la base de datos
+    wbs_create_tables();
 }
 register_activation_hook(__FILE__, 'wbs_activate');
 
