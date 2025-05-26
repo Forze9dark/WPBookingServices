@@ -128,6 +128,7 @@ require_once WBS_PLUGIN_DIR . 'admin/articles.php';
 // Registrar el template personalizado
 function wbs_add_template($templates) {
     $templates['template-catalog.php'] = 'Catálogo Servicios Template';
+    $templates['template-booking.php'] = 'Página de Reservas Template';
     return $templates;
 }
 add_filter('theme_page_templates', 'wbs_add_template');
@@ -136,6 +137,8 @@ add_filter('theme_page_templates', 'wbs_add_template');
 function wbs_load_template($template) {
     if (is_page_template('template-catalog.php')) {
         $template = WBS_PLUGIN_DIR . 'includes/template-catalog.php';
+    } elseif (is_page_template('template-booking.php')) {
+        $template = WBS_PLUGIN_DIR . 'includes/template-booking.php';
     }
     return $template;
 }
