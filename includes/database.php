@@ -111,6 +111,25 @@ function wbs_create_tables() {
         FOREIGN KEY (discount_id) REFERENCES $table_discounts(id) ON DELETE CASCADE
     ) $charset_collate;";
 
+    // Tabla de reservas
+    $table_bookings = $wpdb->prefix . 'wbs_bookings';
+    $sql_bookings = "CREATE TABLE IF NOT EXISTS $table_bookings (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        service_id bigint(20) NOT NULL,
+        customer_name varchar(255) NOT NULL,
+        customer_email varchar(255) NOT NULL,
+        customer_phone varchar(50) NOT NULL,
+        booking_date date NOT NULL,
+        number_of_people int NOT NULL,
+        total_amount decimal(10,2) NOT NULL,
+        status varchar(20) NOT NULL DEFAULT 'pending',
+        notes text,
+        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        FOREIGN KEY (service_id) REFERENCES $table_services(id) ON DELETE CASCADE
+    ) $charset_collate;";
+
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql_article_groups);
     dbDelta($sql_categories);
@@ -119,6 +138,7 @@ function wbs_create_tables() {
     dbDelta($sql_articles);
     dbDelta($sql_discounts);
     dbDelta($sql_service_discounts);
+    dbDelta($sql_bookings);
     $wpdb->query($sql_add_category_relation);
     $wpdb->query($sql_add_group_relation);
 
